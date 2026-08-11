@@ -21,7 +21,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
-    postgres: db.isConfigured ? 'connected' : 'not_connected',
+    mysql: db.isConfigured ? 'connected' : 'not_connected',
     timestamp: new Date()
   });
 });
@@ -32,6 +32,15 @@ app.get('/api/health', (req, res) => {
 const buildImageUrl = (req, filename) => {
   if (!filename) return null;
   return `/uploads/${filename}`;
+};
+
+// Parse a JSON column that may arrive as a string (depends on driver config)
+const asJson = (value, fallback) => {
+  if (value == null) return fallback;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return fallback; }
+  }
+  return value;
 };
 
 // ==========================================
@@ -62,18 +71,23 @@ app.post('/api/auth/admin/register', upload.single('brandLogoFile'), async (req,
       logoUrl = `/uploads/${req.file.filename}`;
     }
 
-    const exists = await db.query('SELECT * FROM admins WHERE email = $1', [email]);
+    const exists = await db.query('SELECT id FROM admins WHERE email = ?', [email]);
     if (exists.rows.length > 0) return res.status(400).json({ message: 'Admin email already exists.' });
 
     const contactInfoStr = typeof contactInfo === 'string' ? contactInfo : JSON.stringify(contactInfo || {});
 
-    const result = await db.query(
+    const ins = await db.query(
       `INSERT INTO admins (email, password, brand_name, tagline, description, contact_info, how_to_order, theme_color, font_family, brand_logo, logo_filename, logo_path, logo_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, email, brand_name, tagline, description, contact_info, how_to_order, theme_color, font_family, brand_logo, logo_filename`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [email, hashedPassword, brandName, tagline, description, contactInfoStr, howToOrder, themeColor || '#3b82f6', fontFamily || 'Outfit', logoUrl, logoFilename, logoPath, logoType]
     );
 
-    const admin = result.rows[0];
+    const sel = await db.query(
+      'SELECT id, email, brand_name, tagline, description, contact_info, how_to_order, theme_color, font_family, brand_logo, logo_filename FROM admins WHERE id = ?',
+      [ins.insertId]
+    );
+    const admin = sel.rows[0];
+    admin.contact_info = asJson(admin.contact_info, {});
     const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
     return res.status(201).json({ token, admin });
   } catch (err) {
@@ -87,7 +101,7 @@ app.post('/api/auth/admin/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ message: 'Email and password required.' });
 
   try {
-    const result = await db.query('SELECT * FROM admins WHERE email = $1', [email]);
+    const result = await db.query('SELECT * FROM admins WHERE email = ?', [email]);
     if (result.rows.length === 0) return res.status(400).json({ message: 'Invalid admin credentials.' });
 
     const admin = result.rows[0];
@@ -109,14 +123,14 @@ app.post('/api/auth/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const exists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const exists = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (exists.rows.length > 0) return res.status(400).json({ message: 'Email already exists.' });
 
-    const result = await db.query(
-      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
+    const ins = await db.query(
+      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
       [name, email, hashedPassword]
     );
-    const user = result.rows[0];
+    const user = { id: ins.insertId, name, email };
     const token = jwt.sign({ id: user.id, email: user.email, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
     return res.status(201).json({ token, user });
   } catch (err) {
@@ -130,7 +144,7 @@ app.post('/api/auth/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ message: 'Email and password required.' });
 
   try {
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     if (result.rows.length === 0) return res.status(400).json({ message: 'Invalid credentials.' });
 
     const user = result.rows[0];
@@ -167,7 +181,7 @@ app.get('/api/admin/profile', async (req, res) => {
       logo_filename: admin.logo_filename,
       tagline: admin.tagline,
       brandDescription: admin.description,
-      contactInfo: typeof admin.contact_info === 'string' ? JSON.parse(admin.contact_info) : admin.contact_info,
+      contactInfo: asJson(admin.contact_info, {}),
       howToOrder: admin.how_to_order,
       primaryColor: admin.theme_color,
       fontFamily: admin.font_family
@@ -197,29 +211,32 @@ app.put('/api/admin/profile', verifyAdmin, upload.single('brandLogoFile'), async
 
   try {
     const adminId = req.user.id;
-    let queryText = '';
-    let queryParams = [];
 
     if (req.file) {
-      queryText = `
-        UPDATE admins 
-        SET brand_name=$1, tagline=$2, description=$3, contact_info=$4, how_to_order=$5, 
-            theme_color=$6, font_family=$7, brand_logo=$8, logo_filename=$9, logo_path=$10, logo_type=$11
-        WHERE id=$12 RETURNING *`;
-      queryParams = [brandName, tagline, description, contactInfoStr, howToOrder, themeColor, fontFamily, logoUrl, logoFilename, logoPath, logoType, adminId];
+      await db.query(
+        `UPDATE admins
+         SET brand_name=?, tagline=?, description=?, contact_info=?, how_to_order=?,
+             theme_color=?, font_family=?, brand_logo=?, logo_filename=?, logo_path=?, logo_type=?
+         WHERE id=?`,
+        [brandName, tagline, description, contactInfoStr, howToOrder, themeColor, fontFamily, logoUrl, logoFilename, logoPath, logoType, adminId]
+      );
     } else {
-      queryText = `
-        UPDATE admins 
-        SET brand_name=$1, tagline=$2, description=$3, contact_info=$4, how_to_order=$5, 
-            theme_color=$6, font_family=$7, brand_logo=COALESCE($8, brand_logo)
-        WHERE id=$9 RETURNING *`;
-      queryParams = [brandName, tagline, description, contactInfoStr, howToOrder, themeColor, fontFamily, logoUrl, adminId];
+      await db.query(
+        `UPDATE admins
+         SET brand_name=?, tagline=?, description=?, contact_info=?, how_to_order=?,
+             theme_color=?, font_family=?, brand_logo=COALESCE(?, brand_logo)
+         WHERE id=?`,
+        [brandName, tagline, description, contactInfoStr, howToOrder, themeColor, fontFamily, logoUrl, adminId]
+      );
     }
 
-    const result = await db.query(queryText, queryParams);
-    if (result.rows.length === 0) return res.status(404).json({ message: 'Admin not found.' });
+    const sel = await db.query(
+      'SELECT id, email, brand_name, brand_logo, logo_filename, tagline, description, contact_info, how_to_order, theme_color, font_family FROM admins WHERE id = ?',
+      [adminId]
+    );
+    if (sel.rows.length === 0) return res.status(404).json({ message: 'Admin not found.' });
 
-    const admin = result.rows[0];
+    const admin = sel.rows[0];
     return res.json({
       message: 'Brand settings updated successfully.',
       admin: {
@@ -230,7 +247,7 @@ app.put('/api/admin/profile', verifyAdmin, upload.single('brandLogoFile'), async
         logo_filename: admin.logo_filename,
         tagline: admin.tagline,
         brandDescription: admin.description,
-        contactInfo: typeof admin.contact_info === 'string' ? JSON.parse(admin.contact_info) : admin.contact_info,
+        contactInfo: asJson(admin.contact_info, {}),
         howToOrder: admin.how_to_order,
         primaryColor: admin.theme_color,
         fontFamily: admin.font_family
@@ -289,28 +306,31 @@ app.use((err, req, res, next) => {
 // PRODUCT INVENTORY ROUTING (CRUD)
 // ==========================================
 
-// Helper to build product query result
+// Helper to build product query result (MariaDB 10.4-compatible: GROUP_CONCAT + JSON_OBJECT,
+// since JSON_ARRAYAGG is only available in MariaDB 10.5+ / MySQL 8+).
 const buildProductQueryText = () => `
   SELECT p.*,
          COALESCE(
-           (SELECT json_agg(json_build_object('id', c.id, 'name', c.name))
+           (SELECT CONCAT('[', GROUP_CONCAT(JSON_OBJECT('id', c.id, 'name', c.name) SEPARATOR ','), ']')
             FROM categories c
             INNER JOIN product_categories pc ON c.id = pc.category_id
             WHERE pc.product_id = p.id),
-           '[]'::json
+           '[]'
          ) AS categories,
          COALESCE(
-           (SELECT json_agg(v.* ORDER BY v.id)
+           (SELECT CONCAT('[', GROUP_CONCAT(JSON_OBJECT('id', v.id, 'product_id', v.product_id, 'name', v.name, 'price', v.price, 'special_price', v.special_price, 'availability_status', v.availability_status, 'image_url', v.image_url, 'image_filename', v.image_filename) ORDER BY v.id SEPARATOR ','), ']')
             FROM product_variants v
             WHERE v.product_id = p.id),
-           '[]'::json
+           '[]'
          ) AS variants,
          (SELECT COALESCE(SUM(views),0) FROM analytics WHERE product_id = p.id) AS likes_count
   FROM products p
 `;
 
 const enrichProduct = (p) => {
-  const firstCategoryName = p.categories && p.categories.length > 0 ? p.categories[0].name : 'General';
+  p.categories = asJson(p.categories, []);
+  p.variants = asJson(p.variants, []);
+  const firstCategoryName = p.categories.length > 0 ? p.categories[0].name : 'General';
   return { ...p, category: firstCategoryName };
 };
 
@@ -340,7 +360,7 @@ app.get('/api/products/featured', async (req, res) => {
 app.get('/api/products/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const queryText = buildProductQueryText() + ' WHERE p.id = $1';
+    const queryText = buildProductQueryText() + ' WHERE p.id = ?';
     const result = await db.query(queryText, [id]);
     if (result.rows.length === 0) return res.status(404).json({ message: 'Product not found.' });
     return res.json(enrichProduct(result.rows[0]));
@@ -382,18 +402,18 @@ app.post('/api/products', verifyAdmin, upload.single('productImage'), async (req
   }
 
   try {
-    const result = await db.query(
+    const ins = await db.query(
       `INSERT INTO products (name, description, price, special_price, offer_percentage, image_url, image_filename, image_path, image_type, availability_status, is_active, is_featured)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [name, description, price, special_price || null, offer_percentage || 0, finalImageUrl, imageFilename, imagePath, imageType, availability_status || 'in_stock', is_active !== false && is_active !== 'false', is_featured === true || is_featured === 'true']
     );
-    const newProd = result.rows[0];
+    const newProdId = ins.insertId;
 
     // Insert categories
     if (parsedCategoryIds && parsedCategoryIds.length > 0) {
       await Promise.all(
         parsedCategoryIds.map(categoryId =>
-          db.query('INSERT INTO product_categories (product_id, category_id) VALUES ($1, $2)', [newProd.id, categoryId])
+          db.query('INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)', [newProdId, categoryId])
         )
       );
     }
@@ -402,22 +422,22 @@ app.post('/api/products', verifyAdmin, upload.single('productImage'), async (req
     if (parsedVariants && parsedVariants.length > 0) {
       await Promise.all(parsedVariants.map(v =>
         db.query(
-          'INSERT INTO product_variants (product_id, name, price, special_price, availability_status) VALUES ($1, $2, $3, $4, $5)',
-          [newProd.id, v.name, v.price, v.special_price || null, v.availability_status || 'in_stock']
+          'INSERT INTO product_variants (product_id, name, price, special_price, availability_status) VALUES (?, ?, ?, ?, ?)',
+          [newProdId, v.name, v.price, v.special_price || null, v.availability_status || 'in_stock']
         )
       ));
     }
 
     // Initialize analytics row
     await db.query(
-      `INSERT INTO analytics (product_id, views, likes, sales, viral_clicks, enquiries, cart_adds, cart_removals)
-       VALUES ($1, 0, 0, 0, 0, 0, 0, 0) ON CONFLICT (product_id) DO NOTHING`,
-      [newProd.id]
+      `INSERT IGNORE INTO analytics (product_id, views, likes, sales, viral_clicks, enquiries, cart_adds, cart_removals)
+       VALUES (?, 0, 0, 0, 0, 0, 0, 0)`,
+      [newProdId]
     );
 
     // Return full product with joins
-    const fullQuery = buildProductQueryText() + ' WHERE p.id = $1';
-    const finalResult = await db.query(fullQuery, [newProd.id]);
+    const fullQuery = buildProductQueryText() + ' WHERE p.id = ?';
+    const finalResult = await db.query(fullQuery, [newProdId]);
     return res.status(201).json(enrichProduct(finalResult.rows[0]));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -458,16 +478,16 @@ app.put('/api/products/:id', verifyAdmin, upload.single('productImage'), async (
     // Build dynamic UPDATE — only update image fields if a new file was provided
     if (req.file) {
       await db.query(
-        `UPDATE products SET name=$1, description=$2, price=$3, special_price=$4, offer_percentage=$5,
-         image_url=$6, image_filename=$7, image_path=$8, image_type=$9,
-         availability_status=$10, is_active=$11, is_featured=$12 WHERE id=$13`,
+        `UPDATE products SET name=?, description=?, price=?, special_price=?, offer_percentage=?,
+         image_url=?, image_filename=?, image_path=?, image_type=?,
+         availability_status=?, is_active=?, is_featured=? WHERE id=?`,
         [name, description, price, special_price || null, offer_percentage || 0, finalImageUrl, imageFilename, imagePath, imageType, availability_status, is_active !== false && is_active !== 'false', is_featured === true || is_featured === 'true', id]
       );
     } else {
       await db.query(
-        `UPDATE products SET name=$1, description=$2, price=$3, special_price=$4, offer_percentage=$5,
-         ${finalImageUrl ? 'image_url=$6,' : ''}
-         availability_status=${finalImageUrl ? '$7' : '$6'}, is_active=${finalImageUrl ? '$8' : '$7'}, is_featured=${finalImageUrl ? '$9' : '$8'} WHERE id=${finalImageUrl ? '$10' : '$9'}`,
+        `UPDATE products SET name=?, description=?, price=?, special_price=?, offer_percentage=?,
+         ${finalImageUrl ? 'image_url=?,' : ''}
+         availability_status=?, is_active=?, is_featured=? WHERE id=?`,
         finalImageUrl
           ? [name, description, price, special_price || null, offer_percentage || 0, finalImageUrl, availability_status, is_active !== false && is_active !== 'false', is_featured === true || is_featured === 'true', id]
           : [name, description, price, special_price || null, offer_percentage || 0, availability_status, is_active !== false && is_active !== 'false', is_featured === true || is_featured === 'true', id]
@@ -475,21 +495,21 @@ app.put('/api/products/:id', verifyAdmin, upload.single('productImage'), async (
     }
 
     // Refresh categories
-    await db.query('DELETE FROM product_categories WHERE product_id = $1', [id]);
+    await db.query('DELETE FROM product_categories WHERE product_id = ?', [id]);
     if (parsedCategoryIds && parsedCategoryIds.length > 0) {
       await Promise.all(
         parsedCategoryIds.map(categoryId =>
-          db.query('INSERT INTO product_categories (product_id, category_id) VALUES ($1, $2)', [id, categoryId])
+          db.query('INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)', [id, categoryId])
         )
       );
     }
 
     // Refresh variants
-    await db.query('DELETE FROM product_variants WHERE product_id = $1', [id]);
+    await db.query('DELETE FROM product_variants WHERE product_id = ?', [id]);
     if (parsedVariants && parsedVariants.length > 0) {
       await Promise.all(parsedVariants.map(v =>
         db.query(
-          'INSERT INTO product_variants (product_id, name, price, special_price, availability_status) VALUES ($1, $2, $3, $4, $5)',
+          'INSERT INTO product_variants (product_id, name, price, special_price, availability_status) VALUES (?, ?, ?, ?, ?)',
           [id, v.name, v.price, v.special_price || null, v.availability_status || 'in_stock']
         )
       ));
@@ -505,7 +525,7 @@ app.put('/api/products/:id', verifyAdmin, upload.single('productImage'), async (
 app.delete('/api/products/:id', verifyAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.query('DELETE FROM products WHERE id = $1', [id]);
+    await db.query('DELETE FROM products WHERE id = ?', [id]);
     return res.json({ message: 'Product deleted successfully.' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -517,7 +537,7 @@ app.patch('/api/products/:id/featured', verifyAdmin, async (req, res) => {
   const { id } = req.params;
   const { is_featured } = req.body;
   try {
-    await db.query('UPDATE products SET is_featured = $1 WHERE id = $2', [is_featured, id]);
+    await db.query('UPDATE products SET is_featured = ? WHERE id = ?', [is_featured, id]);
     return res.json({ message: 'Featured status updated.', is_featured });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -546,13 +566,13 @@ app.post('/api/categories', verifyAdmin, upload.single('categoryImage'), async (
   const image_url = req.file ? `/uploads/categories/${req.file.filename}` : null;
 
   try {
-    const result = await db.query(
+    const ins = await db.query(
       `INSERT INTO categories (name, description, image_url)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
+       VALUES (?, ?, ?)`,
       [name, description || null, image_url]
     );
-    res.status(201).json(result.rows[0]);
+    const sel = await db.query('SELECT * FROM categories WHERE id = ?', [ins.insertId]);
+    res.status(201).json(sel.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
@@ -569,16 +589,16 @@ app.put('/api/categories/:id', verifyAdmin, upload.single('categoryImage'), asyn
   }
 
   try {
-    const result = await db.query(
+    await db.query(
       `UPDATE categories
-       SET name = $1,
-           description = $2,
-           image_url = COALESCE($3, image_url)
-       WHERE id = $4
-       RETURNING *`,
+       SET name = ?,
+           description = ?,
+           image_url = COALESCE(?, image_url)
+       WHERE id = ?`,
       [name, description, image_url, id]
     );
-    res.json(result.rows[0]);
+    const sel = await db.query('SELECT * FROM categories WHERE id = ?', [id]);
+    res.json(sel.rows[0]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -587,7 +607,7 @@ app.put('/api/categories/:id', verifyAdmin, upload.single('categoryImage'), asyn
 app.delete('/api/categories/:id', verifyAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    await db.query('DELETE FROM categories WHERE id = $1', [id]);
+    await db.query('DELETE FROM categories WHERE id = ?', [id]);
     return res.json({ message: 'Category deleted successfully.' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -624,7 +644,7 @@ app.get('/api/cart', verifyToken, async (req, res) => {
        FROM carts c
        JOIN products p ON c.product_id = p.id
        LEFT JOIN product_variants v ON c.variant_id = v.id
-       WHERE c.user_id = $1`,
+       WHERE c.user_id = ?`,
       [userId]
     );
     const parsedCart = result.rows.map(row => ({
@@ -654,19 +674,19 @@ app.post('/api/cart/sync', verifyToken, async (req, res) => {
   const { cart } = req.body;
 
   try {
-    await db.query('DELETE FROM carts WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM carts WHERE user_id = ?', [userId]);
     if (cart && cart.length > 0) {
       await Promise.all(cart.map(item =>
         db.query(
-          'INSERT INTO carts (user_id, product_id, variant_id, quantity) VALUES ($1, $2, $3, $4)',
+          'INSERT INTO carts (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)',
           [userId, item.product.id, item.variant?.id || null, item.quantity]
         )
       ));
       // Track cart_adds in analytics
       await Promise.all(cart.map(item =>
         db.query(
-          `INSERT INTO analytics (product_id, cart_adds) VALUES ($1, $2)
-           ON CONFLICT (product_id) DO UPDATE SET cart_adds = analytics.cart_adds + $2`,
+          `INSERT INTO analytics (product_id, cart_adds) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE cart_adds = cart_adds + VALUES(cart_adds)`,
           [item.product.id, item.quantity]
         ).catch(() => {}) // Ignore if analytics row doesn't exist
       ));
@@ -680,7 +700,7 @@ app.post('/api/cart/sync', verifyToken, async (req, res) => {
 app.get('/api/likes', verifyToken, async (req, res) => {
   const userId = req.user.id;
   try {
-    const result = await db.query('SELECT product_id FROM likes WHERE user_id = $1', [userId]);
+    const result = await db.query('SELECT product_id FROM likes WHERE user_id = ?', [userId]);
     return res.json(result.rows);
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -692,10 +712,10 @@ app.post('/api/likes/sync', verifyToken, async (req, res) => {
   const { likes } = req.body;
 
   try {
-    await db.query('DELETE FROM likes WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM likes WHERE user_id = ?', [userId]);
     if (likes && likes.length > 0) {
       await Promise.all(likes.map(prodId =>
-        db.query('INSERT INTO likes (user_id, product_id) VALUES ($1, $2)', [userId, prodId])
+        db.query('INSERT INTO likes (user_id, product_id) VALUES (?, ?)', [userId, prodId])
       ));
     }
     return res.json({ message: 'Likes synced.' });
@@ -713,8 +733,8 @@ app.post('/api/products/:id/view', async (req, res) => {
   const { id } = req.params;
   try {
     await db.query(
-      `INSERT INTO analytics (product_id, views) VALUES ($1, 1)
-       ON CONFLICT (product_id) DO UPDATE SET views = analytics.views + 1`,
+      `INSERT INTO analytics (product_id, views) VALUES (?, 1)
+       ON DUPLICATE KEY UPDATE views = views + 1`,
       [id]
     );
     return res.json({ message: 'View tracked.' });
@@ -728,8 +748,8 @@ app.post('/api/products/:id/enquiry', async (req, res) => {
   const { id } = req.params;
   try {
     await db.query(
-      `INSERT INTO analytics (product_id, enquiries) VALUES ($1, 1)
-       ON CONFLICT (product_id) DO UPDATE SET enquiries = analytics.enquiries + 1`,
+      `INSERT INTO analytics (product_id, enquiries) VALUES (?, 1)
+       ON DUPLICATE KEY UPDATE enquiries = enquiries + 1`,
       [id]
     );
     return res.json({ message: 'Enquiry tracked.' });
@@ -751,14 +771,14 @@ app.get('/api/analytics', verifyAdmin, async (req, res) => {
     // Full per-product breakdown
     const breakdown = await db.query(
       `SELECT p.id, p.name, p.image_url, p.is_featured,
-              COALESCE(a.views, 0) as views,
-              COALESCE(a.likes, 0) as likes,
-              COALESCE(a.sales, 0) as sales,
-              COALESCE(a.viral_clicks, 0) as virality,
-              COALESCE(a.enquiries, 0) as enquiries,
-              COALESCE(a.cart_adds, 0) as cart_adds,
-              (SELECT COUNT(*) FROM likes lk WHERE lk.product_id = p.id)::integer AS real_likes_count,
-              (SELECT COUNT(*) FROM carts c WHERE c.product_id = p.id)::integer AS cart_count
+              CAST(COALESCE(a.views, 0) AS DECIMAL(20,4)) AS views,
+              CAST(COALESCE(a.likes, 0) AS DECIMAL(20,4)) AS likes,
+              CAST(COALESCE(a.sales, 0) AS DECIMAL(20,4)) AS sales,
+              CAST(COALESCE(a.viral_clicks, 0) AS DECIMAL(20,4)) AS virality,
+              CAST(COALESCE(a.enquiries, 0) AS DECIMAL(20,4)) AS enquiries,
+              CAST(COALESCE(a.cart_adds, 0) AS DECIMAL(20,4)) AS cart_adds,
+              CAST((SELECT COUNT(*) FROM likes lk WHERE lk.product_id = p.id) AS DECIMAL(20,4)) AS real_likes_count,
+              CAST((SELECT COUNT(*) FROM carts c WHERE c.product_id = p.id) AS DECIMAL(20,4)) AS cart_count
        FROM products p
        LEFT JOIN analytics a ON p.id = a.product_id
        WHERE p.is_active = TRUE
@@ -767,8 +787,9 @@ app.get('/api/analytics', verifyAdmin, async (req, res) => {
 
     // Liked but NOT in cart (cart abandonment candidates)
     const likedNotInCart = await db.query(
-      `SELECT p.id, p.name, p.image_url, COUNT(DISTINCT l.user_id) as liked_by,
-              COUNT(DISTINCT c.user_id) as in_cart_by
+      `SELECT p.id, p.name, p.image_url,
+              CAST(COUNT(DISTINCT l.user_id) AS DECIMAL(20,4)) AS liked_by,
+              CAST(COUNT(DISTINCT c.user_id) AS DECIMAL(20,4)) AS in_cart_by
        FROM products p
        INNER JOIN likes l ON l.product_id = p.id
        LEFT JOIN carts c ON c.product_id = p.id AND c.user_id = l.user_id
@@ -781,10 +802,10 @@ app.get('/api/analytics', verifyAdmin, async (req, res) => {
     // Cart abandonment (added to cart but low sales)
     const cartAbandonment = await db.query(
       `SELECT p.id, p.name, p.image_url,
-              COALESCE(a.cart_adds, 0) as cart_adds,
-              COALESCE(a.sales, 0) as sales,
+              CAST(COALESCE(a.cart_adds, 0) AS DECIMAL(20,4)) AS cart_adds,
+              CAST(COALESCE(a.sales, 0) AS DECIMAL(20,4)) AS sales,
               CASE WHEN COALESCE(a.cart_adds, 0) > 0
-                   THEN ROUND((1 - COALESCE(a.sales, 0)::numeric / COALESCE(a.cart_adds, 1)) * 100, 1)
+                   THEN ROUND((1 - COALESCE(a.sales, 0) / COALESCE(a.cart_adds, 1)) * 100, 1)
                    ELSE 0 END as abandonment_rate
        FROM products p
        LEFT JOIN analytics a ON p.id = a.product_id
@@ -812,12 +833,12 @@ app.get('/api/analytics', verifyAdmin, async (req, res) => {
 // Admin Dashboard stats endpoint
 app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
   try {
-    const products = await db.query('SELECT COUNT(*) FROM products');
-    const categories = await db.query('SELECT COUNT(*) FROM categories');
-    const offers = await db.query('SELECT COUNT(*) FROM products WHERE special_price IS NOT NULL AND special_price < price AND is_active = true');
-    const activeProducts = await db.query('SELECT COUNT(*) FROM products WHERE is_active = true');
+    const products = await db.query('SELECT COUNT(*) AS count FROM products');
+    const categories = await db.query('SELECT COUNT(*) AS count FROM categories');
+    const offers = await db.query('SELECT COUNT(*) AS count FROM products WHERE special_price IS NOT NULL AND special_price < price AND is_active = TRUE');
+    const activeProducts = await db.query('SELECT COUNT(*) AS count FROM products WHERE is_active = TRUE');
     const views = await db.query('SELECT COALESCE(SUM(views),0) AS total_views FROM analytics');
-    
+
     // Fetch recent 5 products
     const recentQuery = buildProductQueryText() + ' ORDER BY p.id DESC LIMIT 5';
     const recent = await db.query(recentQuery);

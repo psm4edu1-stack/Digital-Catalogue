@@ -1,41 +1,56 @@
-const { Pool } = require('pg');
+const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Graceful check for PG connection credentials
+// Graceful check for MySQL/MariaDB connection credentials
 const isConfigured = process.env.DB_HOST && process.env.DB_USER && process.env.DB_DATABASE;
 
 let pool = null;
 
 if (isConfigured) {
-  pool = new Pool({
+  pool = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
-    port: process.env.DB_PORT || 5432,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    port: process.env.DB_PORT || 3306,
+    waitForConnections: true,
+    connectionLimit: 20,
+    queueLimit: 0,
+    multipleStatements: true,
+    decimalNumbers: true,
   });
 
-  pool.on('connect', () => {
-    console.log('PostgreSQL database pool connected successfully.');
-  });
+  pool.getConnection()
+    .then((conn) => {
+      console.log('MySQL/MariaDB database pool connected successfully.');
+      conn.release();
+    })
+    .catch((err) => {
+      console.error('MySQL/MariaDB database pool connection failed:', err.message);
+    });
 
-  pool.on('error', (err) => {
-    console.error('Unexpected error on idle PostgreSQL client pool', err);
+  pool.on('connection', () => {
+    // Emitted on new connection acquisition (kept quiet to avoid log spam)
   });
 } else {
-  console.warn('⚠️ WARNING: PostgreSQL connection variables are not fully configured in backend/.env.');
+  console.warn('⚠️ WARNING: MySQL/MariaDB connection variables are not fully configured in backend/.env.');
   console.warn('Backend API will run in sandbox mode using memory or JSON structures.');
 }
 
+// Expose a pg-like interface so call sites keep using `result.rows` / `result.rows[0]`.
+// For INSERT/UPDATE/DELETE, `insertId` and `affectedRows` are attached too.
 module.exports = {
   query: async (text, params) => {
     if (!pool) {
-      throw new Error("PostgreSQL client pool is not initialized. Run in mock fallback sandbox mode.");
+      throw new Error("MySQL/MariaDB client pool is not initialized. Run in mock fallback sandbox mode.");
     }
-    return pool.query(text, params);
+    const [rows] = await pool.query(text, params);
+    if (Array.isArray(rows)) {
+      // SELECT result set
+      return { rows, rowCount: rows.length, insertId: null, affectedRows: rows.length };
+    }
+    // ResultSetHeader (INSERT / UPDATE / DELETE)
+    return { rows: [], rowCount: rows.affectedRows, insertId: rows.insertId, affectedRows: rows.affectedRows };
   },
   pool,
   isConfigured: !!pool
