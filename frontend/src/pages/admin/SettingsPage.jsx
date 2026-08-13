@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { Settings, Save, Palette, Type, Shield, Phone, FileText } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
+import { apiUrl } from '../../config';
 
 const InstagramIcon = ({ size = 16, className = "" }) => (
   <svg 
@@ -90,7 +91,7 @@ const SettingsPage = () => {
           formData.append('brandLogo', brandLogo);
         }
 
-        const res = await fetch('http://localhost:5000/api/admin/profile', {
+        const res = await fetch(`${apiUrl('/api/admin/profile')}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -132,7 +133,7 @@ const SettingsPage = () => {
         formData.append('fontFamily', fontFamily);
         formData.append('brandLogo', brandLogo);
 
-        const res = await fetch('http://localhost:5000/api/admin/profile', {
+        const res = await fetch(`${apiUrl('/api/admin/profile')}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`

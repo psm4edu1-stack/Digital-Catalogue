@@ -5,15 +5,10 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../utils/currency';
 import { Heart, ShoppingCart, Percent } from 'lucide-react';
+import { mediaUrl } from '../config';
 
 const getImageSrc = (product) => {
-  if (product.image_url) {
-    return product.image_url.startsWith('http')
-      ? product.image_url
-      : `http://localhost:5000${product.image_url}`;
-  }
-
-  return 'https://images.unsplash.com/photo-1594938298603-c8148c4b4571?w=400&q=75';
+  return mediaUrl(product.image_url) || 'https://images.unsplash.com/photo-1594938298603-c8148c4b4571?w=400&q=75';
 };
 
 const ProductCard = ({ product }) => {

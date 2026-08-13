@@ -3,6 +3,7 @@ import ProductCard from '../../components/ProductCard';
 import { getMockProducts } from '../../utils/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { Percent, Sparkles } from 'lucide-react';
+import { apiUrl } from '../../config';
 const SpecialOffersPage = () => {
   // useState must be declared before useEffect
   const [products, setProducts] = useState([]);
@@ -15,7 +16,7 @@ const SpecialOffersPage = () => {
       );
       setProducts(offers);
     } else {
-      fetch('http://localhost:5000/api/products')
+      fetch(`${apiUrl('/api/products')}`)
         .then((res) => res.json())
         .then((data) => {
           const offers = data.filter(

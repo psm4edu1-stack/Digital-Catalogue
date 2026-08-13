@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { apiUrl } from '../config';
 
 const ThemeContext = createContext();
 
@@ -34,7 +35,7 @@ export const ThemeProvider = ({ children }) => {
   }, [darkMode]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/admin/profile')
+    fetch(`${apiUrl('/api/admin/profile')}`)
       .then(res => {
         if (!res.ok) throw new Error();
         return res.json();

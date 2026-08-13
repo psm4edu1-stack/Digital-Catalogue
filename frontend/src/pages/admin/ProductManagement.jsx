@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { formatPrice } from '../../utils/currency';
 import { Plus, Edit2, Trash2, X, Percent, Check, PlusCircle, AlertCircle } from 'lucide-react';
 import ImageUpload from '../../components/ImageUpload';
+import { apiUrl, mediaUrl } from '../../config';
 
 const ProductManagement = () => {
   const { useMock } = useAuth();
@@ -42,7 +43,7 @@ const getImageUrl = (url) => {
     return url;
   }
 
-  return `http://localhost:5000${url}`;
+  return mediaUrl(url);
 };
 
   const fetchProducts = async () => {
@@ -50,7 +51,7 @@ const getImageUrl = (url) => {
       setProducts(getMockProducts());
     } else {
       try {
-        const res = await fetch('http://localhost:5000/api/products');
+        const res = await fetch(`${apiUrl('/api/products')}`);
         const data = await res.json();
         setProducts(data);
       } catch (err) {
@@ -64,7 +65,7 @@ const getImageUrl = (url) => {
       setCategories(getMockCategories());
     } else {
       try {
-        const res = await fetch('http://localhost:5000/api/categories');
+        const res = await fetch(`${apiUrl('/api/categories')}`);
         const data = await res.json();
         setCategories(data);
       } catch (err) {
@@ -151,7 +152,7 @@ const getImageUrl = (url) => {
       saveMockProducts(updated);
     } else {
       try {
-        const res = await fetch(`http://localhost:5000/api/products/${id}`, {
+        const res = await fetch(apiUrl(`/api/products/${id}`), {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -236,9 +237,9 @@ const getImageUrl = (url) => {
           formData.append('image_url', imageUrl || '');
         }
 
-        const url = editingProduct 
-          ? `http://localhost:5000/api/products/${editingProduct.id}`
-          : 'http://localhost:5000/api/products';
+        const url = editingProduct
+          ? apiUrl(`/api/products/${editingProduct.id}`)
+          : apiUrl('/api/products');
         const method = editingProduct ? 'PUT' : 'POST';
 
         const res = await fetch(url, {

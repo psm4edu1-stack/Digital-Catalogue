@@ -11,7 +11,11 @@ const { initDatabase } = require('./config/initDb');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// CORS: permissive by default (fine for dev). In production the frontend is
+// served same-origin by this app, so CORS is not exercised. Set CORS_ORIGIN
+// (comma-separated) to restrict to specific origins if you split front/back.
+const corsOrigin = process.env.CORS_ORIGIN;
+app.use(cors(corsOrigin ? { origin: corsOrigin.split(',').map((s) => s.trim()) } : undefined));
 app.use(express.json());
 
 // Public files / uploads routing using path.join
@@ -855,6 +859,25 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// ==========================================
+// PRODUCTION: serve the built frontend (same origin) + SPA fallback
+// The frontend is built into ../../frontend/dist (run `npm run build` in frontend/).
+// In development this directory does not exist, so requests fall through to a 404.
+// ==========================================
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDist));
+// Catch-all: any GET that isn't an API/upload route returns index.html so that
+// React Router deep-links (e.g. /admin/products) work on refresh.
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) {
+      res.status(404).json({ message: 'Frontend build not found. Run "npm run build" in frontend/.' });
+    }
+  });
 });
 
 // Boot listening server after database initialization

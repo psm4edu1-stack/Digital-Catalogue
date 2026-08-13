@@ -5,6 +5,7 @@ import ProductCard from '../../components/ProductCard';
 import { getMockProducts, getMockCategories } from '../../utils/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { SlidersHorizontal, ArrowUpDown, Grid, Check, Search, X } from 'lucide-react';
+import { apiUrl } from '../../config';
 
 const AllProductsPage = ({ sharedFilters, setSharedFilters, setSharedProducts }) => {
   const location = useLocation();
@@ -90,8 +91,8 @@ const AllProductsPage = ({ sharedFilters, setSharedFilters, setSharedProducts })
       } else {
         try {
           const [productsRes, categoriesRes] = await Promise.all([
-            fetch('http://localhost:5000/api/products'),
-            fetch('http://localhost:5000/api/categories')
+            fetch(`${apiUrl('/api/products')}`),
+            fetch(`${apiUrl('/api/categories')}`)
           ]);
           const productsData = await productsRes.json();
           const categoriesData = await categoriesRes.json();

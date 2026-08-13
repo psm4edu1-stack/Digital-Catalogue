@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useAuth } from './AuthContext';
+import { apiUrl } from '../config';
 
 const CartContext = createContext();
 
@@ -15,7 +16,7 @@ export const CartProvider = ({ children }) => {
       setCart(savedCart ? JSON.parse(savedCart) : []);
     } else {
       // Fetch cart from backend API
-      fetch('http://localhost:5000/api/cart', {
+      fetch(`${apiUrl('/api/cart')}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       })
         .then(res => {
@@ -37,7 +38,7 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem(`cart_${user?.id || 'guest'}`, JSON.stringify(cart));
     if (user) {
       // Sync with backend API
-      fetch('http://localhost:5000/api/cart/sync', {
+      fetch(`${apiUrl('/api/cart/sync')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

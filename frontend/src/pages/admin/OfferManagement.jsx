@@ -3,6 +3,7 @@ import { getMockProducts, saveMockProducts } from '../../utils/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { formatPrice } from '../../utils/currency';
 import { Check, Tag, Percent, ArrowRight, Sparkles } from 'lucide-react';
+import { apiUrl, mediaUrl } from '../../config';
 
 const OfferManagement = () => {
   const { useMock } = useAuth();
@@ -33,7 +34,7 @@ const OfferManagement = () => {
       setCategoriesList(['All', ...cats]);
     } else {
       try {
-        const res = await fetch('http://localhost:5000/api/products');
+        const res = await fetch(`${apiUrl('/api/products')}`);
         const prods = await res.json();
         setProducts(prods);
 
@@ -120,7 +121,7 @@ const OfferManagement = () => {
           })) || [];
           const currentCatIds = p.categories ? p.categories.map(c => c.id) : [];
 
-          return fetch(`http://localhost:5000/api/products/${id}`, {
+          return fetch(apiUrl(`/api/products/${id}`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -188,7 +189,7 @@ const OfferManagement = () => {
           })) || [];
           const currentCatIds = p.categories ? p.categories.map(c => c.id) : [];
 
-          return fetch(`http://localhost:5000/api/products/${id}`, {
+          return fetch(apiUrl(`/api/products/${id}`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -352,11 +353,7 @@ const OfferManagement = () => {
                       className="rounded border-[var(--border-color)] text-rose-500 focus:ring-rose-500 w-4 h-4 cursor-pointer"
                     />
                     <img
-  src={
-    prod.image_url?.startsWith('http')
-      ? prod.image_url
-      : `http://localhost:5000${prod.image_url}`
-  }
+  src={mediaUrl(prod.image_url)}
   alt={prod.name}
   className="w-10 h-10 rounded-lg object-cover border border-[var(--border-color)]"
 />

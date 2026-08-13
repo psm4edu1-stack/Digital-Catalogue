@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getMockAnalytics } from '../../utils/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { formatPrice } from '../../utils/currency';
+import { apiUrl, mediaUrl } from '../../config';
 import { 
   BarChart3, Eye, Heart, ShoppingBag, Flame, TrendingUp, 
   MessageSquare, AlertCircle, Sparkles, HelpCircle, ShoppingCart 
@@ -21,7 +22,7 @@ const AnalyticsPage = () => {
       setLoading(false);
     } else {
       try {
-        const res = await fetch('http://localhost:5000/api/analytics', {
+        const res = await fetch(`${apiUrl('/api/analytics')}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -145,11 +146,8 @@ const AnalyticsPage = () => {
                 <span className="font-extrabold text-[var(--text-tertiary)] w-4 text-center">{i + 1}</span>
                 <img
   src={
-    p.image_url
-      ? p.image_url.startsWith('http')
-        ? p.image_url
-        : `http://localhost:5000${p.image_url}`
-      : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
+    mediaUrl(p.image_url) ||
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
   }
   alt={p.name}
   className="w-10 h-10 rounded-lg object-cover border border-[var(--border-color)]"
@@ -180,11 +178,8 @@ const AnalyticsPage = () => {
                 <span className="font-extrabold text-[var(--text-tertiary)] w-4 text-center">{i + 1}</span>
                 <img
   src={
-    p.image_url
-      ? p.image_url.startsWith('http')
-        ? p.image_url
-        : `http://localhost:5000${p.image_url}`
-      : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
+    mediaUrl(p.image_url) ||
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
   }
   alt={p.name}
   className="w-10 h-10 rounded-lg object-cover border border-[var(--border-color)]"
@@ -210,11 +205,8 @@ const AnalyticsPage = () => {
                 <span className="font-extrabold text-[var(--text-tertiary)] w-4 text-center">{i + 1}</span>
                 <img
   src={
-    p.image_url
-      ? p.image_url.startsWith('http')
-        ? p.image_url
-        : `http://localhost:5000${p.image_url}`
-      : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
+    mediaUrl(p.image_url) ||
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
   }
   alt={p.name}
   className="w-10 h-10 rounded-lg object-cover border border-[var(--border-color)]"
@@ -252,11 +244,8 @@ const AnalyticsPage = () => {
                     <td className="p-3 font-semibold text-[var(--text-primary)] flex items-center gap-2">
                       <img
   src={
-    row.image_url
-      ? row.image_url.startsWith('http')
-        ? row.image_url
-        : `http://localhost:5000${row.image_url}`
-      : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
+    mediaUrl(row.image_url) ||
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
   }
   alt={row.name}
   className="w-6 h-6 rounded object-cover border border-[var(--border-color)]"
@@ -301,11 +290,8 @@ const AnalyticsPage = () => {
                     <td className="p-3 font-semibold text-[var(--text-primary)] flex items-center gap-2">
                       <img
   src={
-    row.image_url
-      ? row.image_url.startsWith('http')
-        ? row.image_url
-        : `http://localhost:5000${row.image_url}`
-      : 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
+    mediaUrl(row.image_url) ||
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=200'
   }
   alt={row.name}
   className="w-6 h-6 rounded object-cover border border-[var(--border-color)]"

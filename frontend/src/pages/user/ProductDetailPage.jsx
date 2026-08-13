@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { formatPrice } from '../../utils/currency';
 import ProductCard from '../../components/ProductCard';
 import { Heart, ShoppingCart, ArrowLeft, Percent, PackageOpen, Award, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { apiUrl, mediaUrl } from '../../config';
 
 const ProductDetailPage = () => {
   const { id } = useParams();
@@ -70,7 +71,7 @@ const ProductDetailPage = () => {
     } else {
       const loadProduct = async () => {
         try {
-          const res = await fetch('http://localhost:5000/api/products');
+          const res = await fetch(`${apiUrl('/api/products')}`);
           const allProducts = await res.json();
           const foundProduct = allProducts.find(p => p.id === Number(id));
           
@@ -102,7 +103,7 @@ const ProductDetailPage = () => {
   // View tracking
   useEffect(() => {
     if (!useMock && product) {
-      fetch(`http://localhost:5000/api/products/${product.id}/view`, {
+      fetch(apiUrl(`/api/products/${product.id}/view`), {
         method: 'POST'
       }).catch(err => console.error("Error tracking view:", err));
     }
@@ -173,7 +174,7 @@ const ProductDetailPage = () => {
 
   const handleWhatsAppEnquiry = () => {
     if (!useMock) {
-      fetch(`http://localhost:5000/api/products/${product.id}/enquiry`, {
+      fetch(apiUrl(`/api/products/${product.id}/enquiry`), {
         method: 'POST'
       }).catch(err => console.error("Error tracking enquiry:", err));
     }
@@ -226,9 +227,7 @@ const ProductDetailPage = () => {
                 {images.length > 0 ? (
                   <img
                     src={
-                      images[activeImageIdx]?.startsWith('http')
-                        ? images[activeImageIdx]
-                        : `http://localhost:5000${images[activeImageIdx]}`
+                      mediaUrl(images[activeImageIdx])
                     }
                     alt={`${product.name} preview ${activeImageIdx + 1}`}
                     className="w-full h-full object-contain bg-white transition-all duration-300"
@@ -282,7 +281,7 @@ const ProductDetailPage = () => {
                       }`}
                     >
                       <img
-                        src={img?.startsWith('http') ? img : `http://localhost:5000${img}`}
+                        src={mediaUrl(img)}
                         alt="Thumbnail"
                         className="w-full h-full object-contain bg-white"
                         onError={(e) => {

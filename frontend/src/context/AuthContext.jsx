@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext } from 'react';
 import { useTheme } from './ThemeContext';
+import { apiUrl } from '../config';
 
 const AuthContext = createContext();
 
@@ -17,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const userRegister = async (name, email, password) => {
-    const res = await fetch('http://localhost:5000/api/auth/register', {
+    const res = await fetch(`${apiUrl('/api/auth/register')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password })
@@ -31,7 +32,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const userLogin = async (email, password) => {
-    const res = await fetch('http://localhost:5000/api/auth/login', {
+    const res = await fetch(`${apiUrl('/api/auth/login')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -59,7 +60,7 @@ export const AuthProvider = ({ children }) => {
       formData.append('brandLogo', brandData.brandLogo || '');
     }
 
-    const res = await fetch('http://localhost:5000/api/auth/admin/register', {
+    const res = await fetch(`${apiUrl('/api/auth/admin/register')}`, {
       method: 'POST',
       body: formData
     });
@@ -73,7 +74,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const adminLogin = async (email, password) => {
-    const res = await fetch('http://localhost:5000/api/auth/admin/login', {
+    const res = await fetch(`${apiUrl('/api/auth/admin/login')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })

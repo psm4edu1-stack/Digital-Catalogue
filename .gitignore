@@ -1,0 +1,22 @@
+# ---- Backend ----
+backend/.env
+backend/node_modules/
+backend/uploads/
+backend/logs/
+*.log
+
+# ---- Frontend ----
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- Misc ----
+node_modules/
+*.local

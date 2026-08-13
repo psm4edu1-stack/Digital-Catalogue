@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMockProducts, getMockCategories } from '../../utils/mockData';
 import ProductCard from '../../components/ProductCard';
 import { ChevronRight, ShoppingCart, MessageSquare, ShieldCheck, Star, Phone, Mail, Tag, Sparkles } from 'lucide-react';
+import { apiUrl, mediaUrl } from '../../config';
 
 const InstagramIcon = ({ size = 16, className = "" }) => (
   <svg 
@@ -55,8 +56,8 @@ const LandingPage = () => {
       } else {
         try {
           const [pRes, cRes] = await Promise.all([
-            fetch('http://localhost:5000/api/products'),
-            fetch('http://localhost:5000/api/categories'),
+            fetch(`${apiUrl('/api/products')}`),
+            fetch(`${apiUrl('/api/categories')}`),
           ]);
           const [pData, cData] = await Promise.all([pRes.json(), cRes.json()]);
           setProducts(Array.isArray(pData) ? pData.filter(p => p.is_active) : []);
@@ -73,16 +74,12 @@ const LandingPage = () => {
   // Image display rules helper
   const getCategoryImage = (cat) => {
     if (cat.image_url) {
-      return cat.image_url.startsWith('http')
-        ? cat.image_url
-        : `http://localhost:5000${cat.image_url}`;
+      return mediaUrl(cat.image_url);
     }
     // Fallback to first matching product image
     const match = products.find(p => p.category === cat.name && p.image_url);
     if (match) {
-      return match.image_url.startsWith('http')
-        ? match.image_url
-        : `http://localhost:5000${match.image_url}`;
+      return mediaUrl(match.image_url);
     }
     return 'https://images.unsplash.com/photo-1594938298603-c8148c4b4571?w=400&q=75';
   };

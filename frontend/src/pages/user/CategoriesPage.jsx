@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiUrl, mediaUrl } from "../../config";
 
 const CategoriesPage = () => {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/categories")
+    fetch(`${apiUrl('/api/categories')}`)
       .then(res => res.json())
       .then(data => setCategories(data))
       .catch(err => console.error(err));
@@ -28,7 +29,7 @@ const CategoriesPage = () => {
 >
   {cat.image_url && (
     <img
-  src={`http://localhost:5000${cat.image_url}`}
+  src={mediaUrl(cat.image_url)}
   alt={cat.name}
   className="w-full aspect-[3/4] object-cover"
 />

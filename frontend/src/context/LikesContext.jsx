@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useAuth } from './AuthContext';
+import { apiUrl } from '../config';
 
 const LikesContext = createContext();
 
@@ -17,7 +18,7 @@ export const LikesProvider = ({ children }) => {
       setLikes(savedLikes ? JSON.parse(savedLikes) : []);
     } else {
       // Sync from backend
-      fetch('http://localhost:5000/api/likes', {
+      fetch(`${apiUrl('/api/likes')}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       })
         .then(res => res.json())
@@ -32,7 +33,7 @@ export const LikesProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`likes_${user?.id || 'guest'}`, JSON.stringify(likes));
     if (user) {
-      fetch('http://localhost:5000/api/likes/sync', {
+      fetch(`${apiUrl('/api/likes/sync')}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

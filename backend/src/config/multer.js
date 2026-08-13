@@ -2,8 +2,9 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Ensure uploads directory exists
-const uploadsDir = "uploads";
+// Ensure uploads directory exists (anchored to backend root, not process CWD,
+// so it stays consistent under Phusion Passenger / different launch dirs).
+const uploadsDir = path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

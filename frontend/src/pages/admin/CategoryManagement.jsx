@@ -9,6 +9,7 @@ import {
   Pencil,
   X
 } from 'lucide-react';
+import { apiUrl, mediaUrl } from '../../config';
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
@@ -27,7 +28,7 @@ const CategoryManagement = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/categories');
+      const res = await fetch(`${apiUrl('/api/categories')}`);
       if (!res.ok) throw new Error('Failed to load categories');
       const data = await res.json();
       setCategories(data);
@@ -38,7 +39,7 @@ const CategoryManagement = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/products');
+      const res = await fetch(`${apiUrl('/api/products')}`);
       if (!res.ok) throw new Error('Failed to load products');
       const data = await res.json();
       setProducts(data);
@@ -75,7 +76,7 @@ const CategoryManagement = () => {
         formData.append('categoryImage', newCatImage);
       }
 
-      const res = await fetch('http://localhost:5000/api/categories', {
+      const res = await fetch(`${apiUrl('/api/categories')}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -121,7 +122,7 @@ const CategoryManagement = () => {
         formData.append('categoryImage', newCatImage);
       }
 
-      const res = await fetch(`http://localhost:5000/api/categories/${editingCategory.id}`, {
+      const res = await fetch(apiUrl(`/api/categories/${editingCategory.id}`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -154,7 +155,7 @@ const CategoryManagement = () => {
     if (!window.confirm(`Are you sure you want to delete "${cat.name}"? Products in this category will lose this category reference.`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/categories/${cat.id}`, {
+      const res = await fetch(apiUrl(`/api/categories/${cat.id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -201,7 +202,7 @@ const CategoryManagement = () => {
         if (shouldBeInCat && !hasCat) {
           const currentCatIds = p.categories ? p.categories.map(c => c.id) : [];
           const newCatIds = [...currentCatIds, selectedCategory.id];
-          return fetch(`http://localhost:5000/api/products/${p.id}`, {
+          return fetch(apiUrl(`/api/products/${p.id}`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -224,7 +225,7 @@ const CategoryManagement = () => {
         } else if (!shouldBeInCat && hasCat) {
           const currentCatIds = p.categories ? p.categories.map(c => c.id) : [];
           const newCatIds = currentCatIds.filter(id => id !== selectedCategory.id);
-          return fetch(`http://localhost:5000/api/products/${p.id}`, {
+          return fetch(apiUrl(`/api/products/${p.id}`), {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -355,7 +356,7 @@ const CategoryManagement = () => {
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
-                        src={cat.image_url ? `http://localhost:5000${cat.image_url}` : placeholderImage}
+                        src={cat.image_url ? mediaUrl(cat.image_url) : placeholderImage}
                         alt={cat.name}
                         className="w-8 h-8 rounded-lg object-cover border border-[var(--border-color)] shrink-0"
                       />
@@ -430,7 +431,7 @@ const CategoryManagement = () => {
               <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1">
                 {filteredProducts.map((prod) => {
                   const isChecked = bulkChecked.includes(prod.id);
-                  const prodImage = prod.image_url ? (prod.image_url.startsWith('http') ? prod.image_url : `http://localhost:5000${prod.image_url}`) : placeholderImage;
+                  const prodImage = mediaUrl(prod.image_url) || placeholderImage;
                   return (
                     <label
                       key={prod.id}

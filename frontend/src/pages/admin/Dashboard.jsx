@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiUrl } from '../../config';
 import { ShoppingBag, FolderOpen, Tag, Settings, BarChart3, ArrowRight, Eye, Heart, BarChart4 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -17,8 +18,8 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        fetch('http://localhost:5000/api/products'),
-        fetch('http://localhost:5000/api/categories')
+        fetch(`${apiUrl('/api/products')}`),
+        fetch(`${apiUrl('/api/categories')}`)
       ]);
 
       const products = await productsRes.json();
